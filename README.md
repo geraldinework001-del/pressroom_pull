@@ -1,5 +1,9 @@
 # Pressroom Pull
 
+![Pressroom Pull: the Red Plate and Black Plate pulling the brass slug along the composing rule, with the hot letter N doubling the pull](cover_image.jpg)
+
+**Play now:** https://pressroom-pull.onrender.com/ (enter a name and tap **Practice alone** to pull against a bot printer)
+
 A real-time letterpress word tug-of-war for 2–12 players. The Node server owns each room, accepted word list, slug position, set timer and score. Players connect by four-letter shop code; no account is needed.
 
 ## Run locally
@@ -26,3 +30,5 @@ Open `http://localhost:3000` and use another browser or device on the same netwo
 The validator uses the brief's lightweight vowel and repeated-letter checks. It does not query a dictionary, so the Foreman strike is the in-game correction tool.
 
 - Gamified layer (`fx.js`): printer's ranks from Printer's Devil to Proprietor, XP and eight engraved medals saved on the device, word combos, ink and type-sort bursts and a shareable result card
+
+Submission details (title, description, cover, link) are in [SUBMISSION.md](SUBMISSION.md).
