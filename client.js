@@ -245,8 +245,8 @@
   function coach() {
     const p = state.phase, mine = me()?.team, host = isHost();
     if (p === 'lobby') return host ? ['Pick a team (plate), then press START THE PRESS RUN.', 'Each plate needs at least one printer. Playing alone? Tap + Add a bot printer.'] : ['Pick a team (plate) and wait for the Foreman to start.', 'Red pulls left, Black pulls right.'];
-    if (p === 'preview') return ['Get ready to type words that fit the category.', 'Every word drags the brass slug toward your side. Longer words pull harder, and words containing the hot letter pull double.'];
-    if (p === 'pull' || p === 'sudden') return mine ? [`Type words that fit \u201c${esc(state.category)}\u201d and press Enter.`, `Drag the slug to the ${mine === 'red' ? 'LEFT (red)' : 'RIGHT (black)'} edge to win the set. Each word can be used once by anyone. Long words and words with ${esc(state.hotLetter)} pull harder.`] : ['You\u2019re watching this set.', 'You join a plate at the next set.'];
+    if (p === 'preview') return ['Get ready to type words that fit the category.', 'Every word drags the brass slug toward your side and uses metal letters from your plate\u2019s type case. Longer words pull harder; the hot letter doubles the pull, but there are only a few of it.'];
+    if (p === 'pull' || p === 'sudden') return mine ? [`Type words that fit \u201c${esc(state.category)}\u201d and press Enter.`, `Drag the slug to the ${mine === 'red' ? 'LEFT (red)' : 'RIGHT (black)'} edge. Every word uses letters from your plate\u2019s type case (below the input); they come back 10 seconds later. Short on E? Spend your rare sorts.`] : ['You\u2019re watching this set.', 'You join a plate at the next set.'];
     if (p === 'result') return state.matchOver ? ['Match over.', host ? 'Press Rematch to play again with the same teams.' : 'Share your result, or wait for a rematch.'] : ['Set done. First to win 2 sets wins the match.', host ? 'Press Next category when everyone is ready.' : 'Wait for the Foreman to roll the next category.'];
     return null;
   }
@@ -285,6 +285,7 @@
       <div class="countdown" id="countdown-ring"><span id="countdown">5</span></div>
       <p class="side-note">${mine ? `You pull for the <b class="${mine}">${mine === 'red' ? '← Red Plate' : 'Black Plate →'}</b>` : 'You are watching this set. You will join a plate at the next one.'}</p>
       <ul class="tiers" aria-label="Pull values"><li><b>+1</b>3–4 letters</li><li><b>+2</b>5–7 letters</li><li><b>+3</b>8+ letters</li><li><b>×2</b>hot letter</li></ul>
+      ${mine ? `<p class="case-note"><b>Mind your type case.</b> Your plate shares a tray of metal letters: every word you set uses them up, and they’re put back 10 seconds later. Only ${state.cases?.[mine]?.[state.hotLetter.toLowerCase()] ?? 2} ${state.hotLetter}s this set.</p>` : ''}
     </div>`;
     announce(`Set ${state.setNumber}. The category is ${state.category}. Hot letter ${state.hotLetter}.`);
     sound.play('thud');
@@ -339,6 +340,7 @@
       ${mine ? `<form class="composer ${mine}" id="composer" autocomplete="off">
         <div class="composer-field"><input id="word-input" maxlength="20" placeholder="Set your type…" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-label="Type a word" aria-describedby="composer-note"><span class="estimate" id="estimate" aria-hidden="true"></span></div>
         <button class="button ${mine === 'red' ? 'red' : 'ink'}" type="submit">SET <span aria-hidden="true">↵</span></button>
+        <div class="type-case" id="type-case" aria-label="Your plate's type case"></div>
         <p class="composer-note" id="composer-note" aria-live="assertive">You pull for the ${mine === 'red' ? '← Red Plate' : 'Black Plate →'}. Enter to set.</p>
         <span id="combo-meter" class="streak combo idle" aria-hidden="true">COMBO <b>×0</b></span>
       </form>` : '<p class="spectating">You are watching this set. You will join a plate at the next one.</p>'}
@@ -350,9 +352,9 @@
       $('#composer').addEventListener('submit', event => {
         event.preventDefault();
         const word = input.value.trim(); if (!word) return;
-        send('word', { word }); input.value = ''; showEstimate();
+        send('word', { word }); input.value = ''; showEstimate(); paintCase();
       });
-      input.addEventListener('input', showEstimate);
+      input.addEventListener('input', () => { showEstimate(); paintCase(); });
       input.focus({ preventScroll: true });
     }
     tickFn = pullTick;
@@ -369,9 +371,30 @@
     el.className = 'estimate';
     if (word.length < 3) { el.textContent = ''; return; }
     if (state.feed.some(x => x.word === word)) { el.textContent = 'USED'; el.classList.add('show', 'used'); return; }
+    const short = shortSorts(word);
+    if (short.length) { el.textContent = `NO ${short.join('').toUpperCase()}`; el.classList.add('show', 'used'); return; }
     const hot = word.includes(state.hotLetter.toLowerCase()), tier = word.length <= 4 ? 1 : word.length <= 7 ? 2 : 3;
     el.textContent = `+${Math.min(6, tier * (hot ? 2 : 1))}${hot ? ' ✦' : ''}`;
     el.classList.add('show'); if (hot) el.classList.add('hot');
+  }
+  // The type case: counts of each sort left on my plate, the letters the current word needs, and what is coming back.
+  function shortSorts(word) {
+    const box = state.cases?.[me()?.team]; if (!box) return [];
+    const need = {}; for (const c of word) need[c] = (need[c] || 0) + 1;
+    return Object.keys(need).filter(c => (box[c] || 0) < need[c]);
+  }
+  function paintCase() {
+    const el = $('#type-case'), team = me()?.team, box = state.cases?.[team]; if (!el || !box) return;
+    const word = ($('#word-input')?.value || '').toLowerCase().replace(/[^a-z]/g, ''), need = {};
+    for (const c of word) need[c] = (need[c] || 0) + 1;
+    const back = {}; let next = null;
+    for (const r of state.returning || []) if (r.team === team) { for (const c of r.letters) back[c] = (back[c] || 0) + 1; next = next == null ? r.at : Math.min(next, r.at); }
+    const hot = state.hotLetter.toLowerCase();
+    const html = `<div class="case-grid">${'abcdefghijklmnopqrstuvwxyz'.split('').map(c => {
+      const n = box[c] || 0, cls = [n === 0 ? 'out' : n === 1 ? 'low' : '', need[c] ? (need[c] > n ? 'short' : 'need') : '', c === hot ? 'hot' : ''].join(' ');
+      return `<span class="sort ${cls}" title="${c.toUpperCase()}: ${n} left${back[c] ? `, ${back[c]} coming back` : ''}"><b>${c.toUpperCase()}</b><i>${n}</i>${back[c] ? `<small>+${back[c]}</small>` : ''}</span>`;
+    }).join('')}</div><span class="case-meta">TYPE CASE${next ? ` · type back in ${Math.max(0, Math.ceil((next - now()) / 1000))}s` : ' · all type in the case'}</span>`;
+    if (el.__html !== html) { el.innerHTML = html; el.__html = html; }
   }
   function markHot(word) {
     const letter = state.hotLetter.toLowerCase();
@@ -428,6 +451,7 @@
       }
     }
     pullView.lastPosition = position; pullView.ready = true;
+    paintCase(); showEstimate();
     pullTick();
   }
   function paintBanner() {
@@ -451,6 +475,7 @@
     const left = Math.max(0, Math.ceil((end - (s.pause ? s.pause.startedAt : now())) / 1000));
     const clock = $('#clock'); if (!clock) return;
     clock.textContent = s.pause ? 'PAUSED' : fmt(left);
+    paintCase();
     clock.classList.toggle('urgent', !s.pause && left <= 10);
     if (left !== pullView.lastSecond) {
       if (!s.pause && left <= 5 && left > 0 && pullView.lastSecond !== null) sound.play('tick');
@@ -509,6 +534,7 @@
         <section><span class="kicker">${over ? 'PRINTER OF THE MATCH' : 'PRINTER OF THE SET'}</span>${star && star.pull > 0 ? `<b class="gz-word ${star.team}">${esc(star.name)}</b><small>${TEAM_NAME[star.team] || ''} · ${star.pull} pull from ${star.words} ${star.words === 1 ? 'word' : 'words'}</small>` : '<b class="gz-word">—</b><small>Nobody pulled.</small>'}</section>
         <section><span class="kicker">TYPE SET THIS ROUND</span><b class="gz-word"><span class="red">${set.red}</span> · ${set.black}</b><small>Red words · Black words</small></section>
       </div>
+      ${set.caseStats ? `<p class="gz-case"><span class="kicker">FROM THE TYPE CASE</span>${['red', 'black'].map(team => `<span class="${team}"><b>${TEAM_NAME[team]}:</b> out of sorts ${set.caseStats[team].short}× · ${set.caseStats[team].rare} rare sort${set.caseStats[team].rare === 1 ? '' : 's'} spent (J Q X Z K V)</span>`).join('')}</p>` : ''}
       <div class="gz-words">${['red', 'black'].map(team => `<div><span class="kicker ${team}">${TEAM_NAME[team].toUpperCase()} · BEST TYPE</span><div class="chips">${set.topWords[team].map(w => `<span class="chip ${team}">${esc(w.word.toUpperCase())} <b>+${w.pull}</b></span>`).join('') || '<span class="muted">None</span>'}</div></div>`).join('')}</div>
       ${over ? `<table class="gz-history"><thead><tr><th>Set</th><th>Category</th><th>Winner</th><th>Words</th></tr></thead><tbody>${s.sets.map(x => `<tr><td>${x.number}</td><td>${esc(x.category)}</td><td class="${x.winner || ''}">${x.winner ? TEAM_NAME[x.winner] : 'Dead heat'}</td><td>${x.red} – ${x.black}</td></tr>`).join('')}</tbody></table>` : ''}
       ${over ? `<div class="gz-press"><div><span class="kicker">YOUR PRESS RUN</span><b>${me() ? `${me().words} words · ${me().pull} pull` : 'Watching'}</b></div><span data-fx-chip></span><button class="button ghost small" data-action="share">Share result</button></div>` : ''}

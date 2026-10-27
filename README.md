@@ -19,6 +19,7 @@ Open `http://localhost:3000` and use another browser or device on the same netwo
 - Three to four letters pull 1, five to seven pull 2, and eight or more pull 3. The Hot Letter doubles the pull, up to 6.
 - Sets last 75 seconds. A tie at zero goes to 10-second sudden death, where the next word wins. Best of three sets wins.
 - The Foreman can strike a word; its pull reverses and the word stays used.
+- **The type case:** each plate sets words from a tray of metal letters, sized to its crew (one share per printer: plenty of E, A, O, I, T, N, S and R, one each of the rare sorts, and only two of the Hot Letter). Every word uses its letters; the type is distributed back into the case 10 seconds later. A word the case can't supply is refused as *out of sorts*. Struck words return their type at once. The tray sits under the composer and lights up the letters your word needs and the ones you're missing. The Gazette reports how often each plate ran out of sorts and how many rare sorts it spent.
 - If a plate empties mid-set, the clock pauses for 20 seconds before that plate forfeits. A Foreman who refreshes keeps the role for 15 seconds.
 - A short blocklist rejects profanity and slurs.
 

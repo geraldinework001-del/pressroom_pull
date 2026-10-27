@@ -16,6 +16,10 @@ const EDGE = 12, PREVIEW_MS = 5000, PULL_MS = 75000, SUDDEN_MS = 10000, PAUSE_MS
 const MAX_PLAYERS = 12, MAX_SETS = 3, SETS_TO_WIN = 2, WORDS_PER_SECOND = 4;
 const HOT_LETTERS = 'BCDFGHKLMNPRSTW';
 const ROOM_IDLE_MS = 10 * 60 * 1000, HOST_GRACE_MS = 15000;
+// The type case: each plate sets words from a tray of metal sorts. Used type is distributed back after RETURN_MS.
+// One printer's share, roughly in the proportions of an English job case; the Hot Letter is always scarce.
+const CASE_SHARE = { e:8, a:6, o:5, i:5, t:4, n:4, s:4, r:4, h:2, l:2, d:2, c:2, u:2, m:2, p:2, f:1, g:1, b:1, y:1, w:1, k:1, v:1, x:1, z:1, j:1, q:1 };
+const HOT_SHARE = 2, RETURN_MS = 10000 * SCALE, RARE_SORTS = 'jqxzkv';
 
 // Profanity and slur blocklist, ROT13-encoded to keep the source readable. Matches whole words and simple inflections.
 const BLOCKED = new Set('shpx shpxre shpxvat shpxrq zbgureshpxre fuvg fuvggl ohyyfuvg phag onfgneq qvpx qvpxurnq juber fyhg gjng jnax jnaxre cvff nffubyr nefrubyr obyybpxf avttre avttn snttbg snt ergneq xvxr puvax fcvp genaal jrgonpx tbbx'
@@ -80,7 +84,8 @@ function publicRoom(room) {
     players:connected(room).map(({id,name,team,words,pull,isBot})=>({id,name,team,words,pull,isBot:!!isBot})), practice:!!room.practice,
     score:room.score, setNumber:room.setNumber, maxSets:MAX_SETS, edge:EDGE, matchOver:matchOver(room),
     category:room.category, hotLetter:room.hotLetter, position:room.position, endsAt:room.endsAt, previewEndsAt:room.previewEndsAt, suddenEndsAt:room.suddenEndsAt,
-    pause:room.pause, winner:room.winner, feed:room.feed.slice(-40), tally:tally(room), sets:room.sets, balanced:room.balanced, usedCount:room.used.size };
+    pause:room.pause, winner:room.winner, feed:room.feed.slice(-40), tally:tally(room), sets:room.sets, balanced:room.balanced, usedCount:room.used.size,
+    cases:room.cases||null, returning:(room.returning||[]).map(({team,letters,at})=>({team,letters,at})) };
 }
 function tally(room) {
   const count=team=>{const kept=room.feed.filter(x=>x.team===team&&!x.struck);return {words:kept.length,pull:kept.reduce((n,x)=>n+x.pull,0)};};
@@ -99,7 +104,8 @@ function finish(room, winner, reason) {
     red:byTeam('red').length, black:byTeam('black').length,
     longest:[...kept].sort((a,b)=>b.word.length-a.word.length||b.pull-a.pull)[0]||null,
     mvp:[...totals.values()].sort((a,b)=>b.pull-a.pull)[0]||null,
-    topWords:{ red:byTeam('red').sort((a,b)=>b.pull-a.pull).slice(0,4), black:byTeam('black').sort((a,b)=>b.pull-a.pull).slice(0,4) } });
+    topWords:{ red:byTeam('red').sort((a,b)=>b.pull-a.pull).slice(0,4), black:byTeam('black').sort((a,b)=>b.pull-a.pull).slice(0,4) },
+    caseStats:room.caseStats });
   if(winner) room.score[winner]++;
   broadcast(room);
 }
@@ -110,9 +116,25 @@ function startSet(room) {
   const fresh=categories.filter(c=>!room.categoryHistory.includes(c));
   room.category=pick(fresh.length?fresh:categories); room.categoryHistory.push(room.category);
   room.hotLetter=pick(HOT_LETTERS);
+  room.cases={ red:makeCase(teamSize(room,'red'),room.hotLetter), black:makeCase(teamSize(room,'black'),room.hotLetter) }; room.returning=[];
+  room.caseStats={ red:{short:0,rare:0}, black:{short:0,rare:0} };
   for(const p of room.players.values()) if(p.isBot) p.nextAt=0;
   room.phase='preview'; room.previewEndsAt=Date.now()+PREVIEW_MS; room.position=0; room.feed=[]; room.used=new Set(); room.winner=null; room.pause=null;
   broadcast(room);
+}
+// A plate's case grows with its crew: the first printer brings a full share, each extra printer three quarters more.
+function makeCase(printers, hotLetter) {
+  const scale=1+0.75*Math.max(0,printers-1), hot=hotLetter.toLowerCase();
+  return Object.fromEntries(Object.entries(CASE_SHARE).map(([c,n])=>[c,Math.ceil((c===hot?HOT_SHARE:n)*scale)]));
+}
+// Letters this word needs that the case cannot supply right now.
+function shortSorts(box, word) {
+  const need={}; for(const c of word) need[c]=(need[c]||0)+1;
+  return Object.keys(need).filter(c=>(box[c]||0)<need[c]);
+}
+function distribute(room, entry) {
+  const box=room.cases?.[entry.team]; if(!box) return;
+  for(const c of entry.letters) box[c]=(box[c]||0)+1;
 }
 function beginPull(room) {
   room.phase='pull'; room.startedAt=Date.now(); room.endsAt=room.startedAt+PULL_MS; room.suddenEndsAt=null;
@@ -139,7 +161,8 @@ function runBots(room, now) {
     if(!bot.nextAt) { bot.nextAt=now+(1500+crypto.randomInt(2500))*SCALE; continue; }
     if(now<bot.nextAt) continue;
     bot.nextAt=now+(room.phase==='sudden'?2500+crypto.randomInt(3000):3400+crypto.randomInt(3200))*SCALE;
-    const pool=(BOT_WORDS[room.category]||[]).filter(w=>!room.used.has(w)&&w!==room.category.toLowerCase());
+    // Bots only reach for words their own case can still set.
+    const pool=(BOT_WORDS[room.category]||[]).filter(w=>!room.used.has(w)&&w!==room.category.toLowerCase()&&!shortSorts(room.cases[bot.team],w).length);
     if(!pool.length) continue;
     const hot=pool.filter(w=>w.includes(room.hotLetter.toLowerCase()));
     setWord(room, bot, pick(hot.length&&crypto.randomInt(3)===0?hot:pool));
@@ -193,7 +216,10 @@ function handle(ws,msg) {
   if(msg.type==='strike') {
     if(player.id!==room.hostId)return send(ws,'error',{message:'Only the Foreman can strike type.'});
     const item=room.feed.find(x=>x.id===msg.id); if(!live(room)||!item||item.struck)return;
-    item.struck=true; room.position=Math.max(-EDGE,Math.min(EDGE,room.position-(item.team==='red'?-1:1)*item.pull));
+    item.struck=true;
+    // Struck type goes straight back into the case.
+    const back=room.returning.findIndex(r=>r.id===item.id); if(back>=0) distribute(room,room.returning.splice(back,1)[0]);
+    room.position=Math.max(-EDGE,Math.min(EDGE,room.position-(item.team==='red'?-1:1)*item.pull));
     const author=room.players.get(item.playerId); if(author){author.words--;author.pull-=item.pull;}
     if(Math.abs(room.position)>=EDGE)finish(room,leader(room),'edge'); else broadcast(room);
   }
@@ -213,13 +239,17 @@ function setWord(room, player, value) {
   else if(isBlocked(raw))error='That word is not allowed';
   else if(raw===room.category.toLowerCase())error='That is the category itself';
   else if(room.used.has(raw)){const first=room.feed.find(x=>x.word===raw);error=`Already set in type${first?` by ${first.name}`:''}`;}
+  if(!error){const short=shortSorts(room.cases[player.team],raw); if(short.length){room.caseStats[player.team].short++;}if(short.length)error=`Out of sorts: no ${short.map(c=>c.toUpperCase()).join(', ')} left in your case`;}
   if(error)return {error,word:raw};
   room.used.add(raw);
+  const box=room.cases[player.team]; for(const c of raw){box[c]--; if(RARE_SORTS.includes(c)) room.caseStats[player.team].rare++;}
   const tier=raw.length<=4?1:raw.length<=7?2:3, hot=raw.includes(room.hotLetter.toLowerCase());
   let pull=Math.min(6,tier*(hot?2:1)), bonus=false;
   if(room.balanced&&teamSize(room,player.team)<teamSize(room,other(player.team))){pull++;bonus=true;}
   room.position=Math.max(-EDGE,Math.min(EDGE,room.position+(player.team==='red'?-1:1)*pull));
-  room.feed.push({id:id(),playerId:player.id,name:player.name,team:player.team,word:raw,pull,hot,bonus,struck:false,ts:Date.now()});
+  const itemId=id();
+  room.feed.push({id:itemId,playerId:player.id,name:player.name,team:player.team,word:raw,pull,hot,bonus,struck:false,ts:Date.now()});
+  room.returning.push({id:itemId,team:player.team,letters:raw,at:Date.now()+RETURN_MS});
   player.words++; player.pull+=pull;
   if(player.isBot) afterWord(room);
   return {item:{word:raw,pull,hot,bonus}};
@@ -247,6 +277,7 @@ setInterval(()=>{
     if(!humans(room).length){room.emptySince??=now;if(now-room.emptySince>ROOM_IDLE_MS)rooms.delete(room.code);continue;}
     room.emptySince=null;
     if(!room.players.get(room.hostId)?.connected&&now>=(room.hostGraceUntil||0)){passForeman(room);broadcast(room);}
+    if(live(room)&&!room.pause&&room.returning?.some(r=>now>=r.at)){for(const r of room.returning.filter(r=>now>=r.at))distribute(room,r);room.returning=room.returning.filter(r=>now<r.at);broadcast(room);}
     runBots(room,now);
     if(room.phase==='preview'&&now>=room.previewEndsAt)beginPull(room);
     else if(room.pause){if(now>=room.pause.until)finish(room,other(room.pause.team),'forfeit');}

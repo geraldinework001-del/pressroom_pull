@@ -520,3 +520,25 @@ body.offline::before { content: 'Reconnecting to the shop…'; position: fixed; 
 /* Example room code under the code box */
 .code-hint { margin: 6px 0 4px; font: italic 13px/1.5 var(--serif); color: var(--muted); text-align: left; }
 .code-hint b { font-style: normal; letter-spacing: .14em; color: var(--ink); }
+
+/* The type case: a tray of sorts under the composer */
+.type-case { grid-column: 1 / -1; }
+.case-grid { display: grid; grid-template-columns: repeat(26, minmax(0, 1fr)); gap: 3px; }
+.sort { position: relative; display: grid; justify-items: center; padding: 3px 0 2px; background: var(--wood); border: 1px solid var(--wood-deep); box-shadow: inset 0 -2px 0 #0000001f; color: var(--ink); line-height: 1; transition: background .2s, transform .15s; }
+.sort b { font: 13px var(--display); }
+.sort i { font: 700 10px var(--type); font-style: normal; color: #1a1a1aaa; }
+.sort small { position: absolute; top: -7px; right: -3px; font: 700 9px var(--type); color: var(--blue); background: var(--paper-light); border: 1px solid var(--blue); padding: 0 2px; }
+.sort.low { background: var(--brass-light); }
+.sort.out { background: var(--paper-deep); color: #1a1a1a55; border-style: dashed; box-shadow: none; }
+.sort.out i { color: var(--red); }
+.sort.hot b { color: var(--red-deep); text-decoration: underline; text-underline-offset: 2px; }
+.sort.need { background: var(--ink); color: var(--paper); transform: translateY(-2px); }
+.sort.need i { color: var(--brass-light); }
+.sort.short { background: var(--red); color: var(--paper); border-color: var(--red-deep); animation: shake .36s; }
+.sort.short i { color: var(--paper); }
+.case-meta { display: block; margin-top: 4px; font: 700 10px var(--type); letter-spacing: .12em; color: var(--muted); }
+.case-note { max-width: 520px; margin: 16px auto 0; font: 14px/1.5 var(--type); color: var(--ink-soft); }
+@media (max-width: 640px) { .case-grid { grid-template-columns: repeat(13, minmax(0, 1fr)); } .sort b { font-size: 12px; } }
+@media (prefers-reduced-motion: reduce) { .sort.short { animation: none; } .sort { transition: none; } }
+.gz-case { display: grid; gap: 4px; margin: 14px 0 0; padding: 10px 12px; border: 1px dashed var(--line); font: 13px/1.5 var(--type); }
+.gz-case .red b { color: var(--red); }
