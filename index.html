@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<meta name="theme-color" content="#f4ede0">
+<meta name="description" content="Two print shops fight over one strip of paper. A real-time team word tug-of-war for 2 to 12 players.">
+<title>Pressroom Pull</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='1' y='1' width='30' height='30' fill='%23c8372d' stroke='%231a1a1a' stroke-width='2'/%3E%3Ctext x='16' y='24' text-anchor='middle' font-family='Georgia' font-weight='900' font-size='22' fill='%23f4ede0'%3EP%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Courier+Prime:wght@400;700&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="masthead">
+  <a class="brand" href="/" aria-label="Pressroom Pull home"><span class="brand-mark">P</span><span class="brand-name">PRESSROOM <b>PULL</b></span></a>
+  <span class="edition">VOL. I &nbsp;·&nbsp; THE LETTERPRESS WORD GAME &nbsp;·&nbsp; EST. 1894</span>
+  <div class="masthead-tools">
+    <span class="mast-chip" data-fx-chip title="Your printer's rank"></span>
+    <button id="sound-toggle" class="icon-button" aria-pressed="true" aria-label="Sound on" title="Sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/><path class="mute" d="M16 9l6 6M22 9l-6 6"/></svg></button>
+    <button id="help-open" class="icon-button" aria-label="How to play" title="How to play">?</button>
+  </div>
+</header>
+
+<main id="app">
+  <section id="landing" class="landing">
+    <div class="dateline"><span>TWO SHOPS</span><i>✦</i><span>ONE STRIP OF PAPER</span><i>✦</i><span>2–12 PRINTERS</span></div>
+    <h1><span>PRESSROOM</span><em>PULL</em></h1>
+    <p class="intro">A category is called. Every word your team sets drags the brass slug toward your plate. <b>Longer words pull harder.</b></p>
+    <form class="order-slip" id="landing-form" autocomplete="off">
+      <div class="slip-head"><span>WORK ORDER</span><span>Nº <b id="slip-no">0001</b></span></div>
+      <label for="player-name">Your printer's name</label>
+      <input id="player-name" maxlength="14" placeholder="e.g. Oliver" autocomplete="nickname" spellcheck="false">
+      <label for="room-code">Join a shop</label>
+      <div class="join-row"><input id="room-code" aria-describedby="code-hint" maxlength="4" placeholder="KFRT" autocapitalize="characters" spellcheck="false" inputmode="text"><button id="join-button" class="button ink" type="submit">JOIN THE SHOP <span aria-hidden="true">→</span></button></div>
+        <p class="code-hint" id="code-hint">Four letters from whoever opened the shop, like <b data-example-code>KFRT</b>. Starting your own game? Skip this.</p>
+      <div class="or-rule"><span>or</span></div>
+      <button id="host-button" class="button red full" type="button">OPEN A NEW SHOP <span aria-hidden="true">↗</span></button>
+      <button id="practice-button" class="button ghost full practice-button" type="button">PRACTICE ALONE <small>vs a bot printer</small></button>
+      <p class="solo-hint">Playing alone? Tap <b>Practice alone</b> to pull against a bot.</p>
+      <p id="landing-error" class="form-error" role="alert"></p>
+    </form>
+    <div class="landing-foot"><ol class="landing-rules">
+      <li><b>01</b>Split into the Red Plate and the Black Plate.</li>
+      <li><b>02</b>Type words that fit the category. 75 seconds a set.</li>
+      <li><b>03</b>First slug to the edge wins. Best of three.</li>
+    </ol>
+    <div id="press-card" class="fx-card press-card" aria-label="Your printer's rank"></div></div>
+  </section>
+  <section id="game" class="game hidden" aria-live="off"></section>
+</main>
+
+<dialog id="howto" aria-labelledby="howto-title">
+  <button class="dialog-close" id="help-close" aria-label="Close">×</button>
+  <div class="kicker">THE FOREMAN'S NOTE</div>
+  <h2 id="howto-title">How to play</h2>
+  <ol class="how-steps">
+    <li><b>01</b><span>A category is called. Type words that belong in it.</span></li>
+    <li><b>02</b><span>Each word you set pulls the brass slug toward your plate.</span></li>
+    <li><b>03</b><span>Longer words pull harder. Use the Hot Letter to double the pull.</span></li>
+  </ol>
+  <table class="pull-table">
+    <tr><th>3–4 letters</th><td>+1</td></tr>
+    <tr><th>5–7 letters</th><td>+2</td></tr>
+    <tr><th>8+ letters</th><td>+3</td></tr>
+    <tr><th>Contains the Hot Letter</th><td>×2 <small>(max 6)</small></td></tr>
+  </table>
+  <p>Each word can be set once per set, by either plate. The Foreman can strike a word to reverse its pull. First to the edge wins the set; best of three takes the match.</p>
+  <button class="button ink full" id="got-it">GOT IT, FOREMAN</button>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="announcer" class="sr-only" aria-live="polite"></div>
+<script src="/fx.js"></script>
+<script src="/client.js"></script>
+</body>
+</html>
